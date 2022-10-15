@@ -1,20 +1,13 @@
-//! Provides a multithreaded html with compression support
-
-use log::error;
+//! Provides a html loader with compression support
 use reqwest::header::{
     ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, CONTENT_ENCODING, USER_AGENT,
 };
 use std::io::Read;
 
-error_chain::error_chain! {
-    foreign_links {
-        Io(std::io::Error);
-    }
-}
+use crate::FletcherError;
 
-/// Tries to download a single URL 10 times. If the URL cannot be loaded, or
-/// is not found, an error is returned
-pub fn load_page(url: &str) -> Result<String> {
+/// Tries to download a single URL 10 times and returns the body
+pub fn load_page(url: &str) -> Result<String, FletcherError> {
     for _ in 1..=10 {
         let client = reqwest::blocking::Client::new();
         let mut res = match client
@@ -37,8 +30,8 @@ pub fn load_page(url: &str) -> Result<String> {
             let mut buf: Vec<u8> = Vec::new();
             match res.read_to_end(&mut buf) {
                 Ok(_) => {}
-                Err(e) => {
-                    eprintln!("\n{e}\n")
+                Err(_) => {
+                    continue;
                 }
             }
             match res
@@ -68,9 +61,7 @@ pub fn load_page(url: &str) -> Result<String> {
                         continue;
                     }
                 }
-                _ => {
-                    panic!("Recieved a content encoding that was not requested")
-                }
+                _ => return Err(FletcherError::InvalidResponse),
             };
         } else if res.read_to_string(&mut body).is_err() {
             continue;
@@ -81,20 +72,17 @@ pub fn load_page(url: &str) -> Result<String> {
         }
 
         if res.status().eq(&reqwest::StatusCode::TOO_MANY_REQUESTS) {
-            error!(
-                "HTML Error 429: Send too many requests. All further requests will fail. Stopping"
-            );
-            std::process::exit(1)
+            return Err(FletcherError::RateLimitReached);
         }
 
         if res.status().eq(&reqwest::StatusCode::FORBIDDEN) {
-            error!("HTML Error 403: We are banned. All further requests will fail. Stopping");
-            std::process::exit(1)
+            return Err(FletcherError::Forbidden);
         }
 
         if res.status().eq(&reqwest::StatusCode::NOT_FOUND) {
-            return Err("Not found".into());
+            return Err(FletcherError::NotFound);
         }
     }
-    Err("Failed to often".into())
+
+    Err(FletcherError::FailedTooOften)
 }
