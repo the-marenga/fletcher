@@ -4,7 +4,7 @@
 pub mod html_loader;
 use libxml::{parser::Parser, xpath::Context};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum FletcherError {
     /// The site could not be fetched within the specified limit
     FailedTooOften,
