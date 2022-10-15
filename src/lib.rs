@@ -42,6 +42,9 @@ pub fn fetch_extract<const COUNT: usize>(
     let results: [Vec<String>; COUNT] = xpaths
         .iter()
         .map(|xp| {
+            if xp.is_empty(){
+                return Vec::new();
+            }
             let root = if xp.starts_with('/') { "" } else { "/" };
             let xp = &(root.to_string() + xp);
             match context.evaluate(xp) {
